@@ -3,7 +3,18 @@
 % import re
 %
 % recommendations = set(["platformio.platformio-ide"])
-% unwantedRecommendations = set(["ms-vscode.cpptools-extension-pack"])
+% unwantedRecommendations = set()
+%
+% # Configure extension recommendations based on selected C++ toolchain
+% if vscode_cpp_toolchain == "anysphere.cpptools":
+%   recommendations.add("anysphere.cpptools")
+%   unwantedRecommendations.add("ms-vscode.cpptools-extension-pack")
+%   unwantedRecommendations.add("ms-vscode.cpptools")
+% else:
+%   unwantedRecommendations.add("ms-vscode.cpptools-extension-pack")
+%   unwantedRecommendations.add("anysphere.cpptools")
+% end
+%
 % previous_json = os.path.join(project_dir, ".vscode", "extensions.json")
 % if os.path.isfile(previous_json):
 %   fp = open(previous_json)

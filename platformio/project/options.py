@@ -651,6 +651,16 @@ ProjectOptions = OrderedDict(
                 type=click.BOOL,
                 default=False,
             ),
+            #
+            # IDE
+            #
+            ConfigEnvOption(
+                group="ide",
+                name="vscode_cpp_toolchain",
+                description="Specify the C/C++ toolchain for VSCode IntelliSense.",
+                type=click.Choice(["ms-vscode.cpptools", "anysphere.cpptools"]),
+                default="ms-vscode.cpptools",
+            ),
             # Test
             ConfigEnvOption(
                 group="test",

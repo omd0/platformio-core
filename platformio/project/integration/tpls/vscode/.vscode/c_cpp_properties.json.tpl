@@ -86,7 +86,51 @@
 //
 {
     "configurations": [
+% if vscode_cpp_toolchain == "anysphere.cpptools":
         {
+            // ANYSPHERE.CPPTOOLS-SPECIFIC CONFIGURATION
+            // This configuration is tailored for the anysphere.cpptools extension.
+            // The actual structure may need refinement based on anysphere.cpptools requirements.
+            "name": "PlatformIO (anysphere)",
+            "includePath": [
+% for include in cleaned_includes:
+                "{{ include }}",
+% end
+                ""
+            ],
+            "defines": [
+% for define in defines:
+                "{{! _escape(define) }}",
+% end
+                ""
+            ],
+% if cc_stds:
+            "cStandard": "{{ cc_stds[-1] }}",
+% end
+% if cxx_stds:
+            "cppStandard": "{{ cpp_standards_remap.get(cxx_stds[-1], cxx_stds[-1]) }}",
+% end
+% if forced_includes:
+            "forcedInclude": [
+% for include in forced_includes:
+                "{{ include }}",
+% end
+                ""
+            ],
+% end
+            "compilerPath": "{{ cxx_path }}",
+            "compilerArgs": [
+% for flag in [
+%     f for f in filter_args(cxx_flags, ["-m", "-i", "@"], ["-include", "-imacros"])
+% ]:
+                "{{ flag }}",
+% end
+                ""
+            ]
+        }
+% else:
+        {
+            // DEFAULT MS-VSCODE.CPPTOOLS CONFIGURATION
             "name": "PlatformIO",
             "includePath": [
 % for include in cleaned_includes:
@@ -133,6 +177,7 @@
                 ""
             ]
         }
+% end
     ],
     "version": 4
 }
