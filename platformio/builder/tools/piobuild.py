@@ -148,6 +148,51 @@ def ProcessCompileDbToolchainOption(env):
         if scope in ("toolchain", "build", "compatlib"):
             env.Append(CPPPATH=includes)
 
+    # Filter GCC-specific flags for clangd compatibility
+    env.FilterClangdFlags()
+
+
+def FilterClangdFlags(env):
+    """Filter GCC-specific flags that clangd doesn't understand"""
+    if "compiledb" not in COMMAND_LINE_TARGETS:
+        return
+
+    # Check if clangd flag filtering is enabled (default: True)
+    if not env.GetProjectOption("compiledb_clangd_compat", True):
+        return
+
+    # GCC flags that clangd doesn't understand or has different syntax
+    gcc_only_flags = [
+        "-mlongcalls",  # clang uses -mlong-calls
+        "-fstrict-volatile-bitfields",  # not supported in clang
+        "-fno-tree-switch-conversion",  # GCC-specific optimization
+        "-fno-jump-tables",  # GCC-specific
+        "-fno-unwind-tables",  # GCC-specific
+        "-fno-asynchronous-unwind-tables",  # GCC-specific
+        "-fno-builtin",  # clang uses -fno-builtin-*
+        "-fno-common",  # clang uses -fcommon=off
+        "-fno-reorder-functions",  # GCC-specific
+        "-fno-reorder-blocks",  # GCC-specific
+        "-fno-reorder-blocks-and-partition",  # GCC-specific
+    ]
+
+    # Filter out GCC-specific flags from compilation flags
+    for flag_list in ["CCFLAGS", "CFLAGS", "CXXFLAGS", "CPPFLAGS"]:
+        if flag_list in env:
+            env[flag_list] = [flag for flag in env[flag_list] if flag not in gcc_only_flags]
+
+    # Replace GCC flags with clang equivalents where possible
+    flag_replacements = {
+        "-mlongcalls": "-mlong-calls",
+        "-fno-builtin": "-fno-builtin-printf",  # more specific for clang
+    }
+
+    for flag_list in ["CCFLAGS", "CFLAGS", "CXXFLAGS", "CPPFLAGS"]:
+        if flag_list in env:
+            for i, flag in enumerate(env[flag_list]):
+                if flag in flag_replacements:
+                    env[flag_list][i] = flag_replacements[flag]
+
 
 def ProcessProjectDeps(env):
     plb = env.ConfigureProjectLibBuilder()
@@ -388,6 +433,7 @@ def generate(env):
     env.AddMethod(BuildProgram)
     env.AddMethod(ProcessProgramDeps)
     env.AddMethod(ProcessCompileDbToolchainOption)
+    env.AddMethod(FilterClangdFlags)
     env.AddMethod(ProcessProjectDeps)
     env.AddMethod(ParseFlagsExtended)
     env.AddMethod(ProcessFlags)

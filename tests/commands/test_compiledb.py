@@ -214,4 +214,59 @@ board = native
             include_flags = [arg for arg in arguments if arg.startswith("-I")]
             for flag in include_flags:
                 include_path = flag[2:].strip('"')
-                assert os.path.isabs(include_path), f"Include path should be absolute: {include_path}" 
+                assert os.path.isabs(include_path), f"Include path should be absolute: {include_path}"
+
+
+def test_compiledb_gcc_flag_filtering(tmpdir):
+    """Test that GCC-specific flags are filtered for clangd compatibility"""
+    
+    # Create a test project with GCC-specific flags
+    project_dir = tmpdir.mkdir("test_gcc_flag_filtering")
+    
+    # Create platformio.ini with clangd compatibility enabled
+    ini_content = """
+[env:esp32]
+platform = espressif32
+board = esp32dev
+build_flags = -mlongcalls -fstrict-volatile-bitfields -fno-tree-switch-conversion
+"""
+    with open(os.path.join(project_dir, "platformio.ini"), "w") as f:
+        f.write(ini_content)
+    
+    # Create source file
+    src_dir = os.path.join(project_dir, "src")
+    os.makedirs(src_dir, exist_ok=True)
+    with open(os.path.join(src_dir, "main.cpp"), "w") as f:
+        f.write("#include <Arduino.h>\nvoid setup() {}\nvoid loop() {}\n")
+    
+    # Run compiledb command
+    from platformio import proc
+    result = proc.exec_command(
+        ["platformio", "run", "-t", "compiledb"],
+        cwd=project_dir
+    )
+    
+    # Check that command succeeded
+    assert result["returncode"] == 0, f"Command failed: {result['err']}"
+    
+    # Parse compile_commands.json
+    compile_commands_path = os.path.join(project_dir, "compile_commands.json")
+    with open(compile_commands_path, "r") as f:
+        compile_commands = json.load(f)
+    
+    # Check that GCC-specific flags are filtered out
+    gcc_only_flags = [
+        "-mlongcalls",
+        "-fstrict-volatile-bitfields", 
+        "-fno-tree-switch-conversion"
+    ]
+    
+    for unit in compile_commands:
+        if "command" in unit:
+            command = unit["command"]
+            for flag in gcc_only_flags:
+                assert flag not in command, f"GCC-specific flag '{flag}' should be filtered out: {command}"
+        elif "arguments" in unit:
+            arguments = unit["arguments"]
+            for flag in gcc_only_flags:
+                assert flag not in arguments, f"GCC-specific flag '{flag}' should be filtered out: {arguments}" 

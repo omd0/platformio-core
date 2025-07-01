@@ -44,6 +44,10 @@ The current `compile_commands.json` generator likely doesn't include the full pa
     - Custom include paths from platformio.ini configuration
     - Toolchain-specific include paths (compiler built-ins, system headers)
     - Build variant-specific include paths
+  - **GCC Flag Filtering**: Filter GCC-specific flags for clangd compatibility
+    - Remove unsupported flags like `-mlongcalls`, `-fstrict-volatile-bitfields`
+    - Replace with clang equivalents where possible (e.g., `-mlongcalls` → `-mlong-calls`)
+    - Configurable via `compiledb_clangd_compat` option
 
 ### 5. Testing and Validation
 - **Test Implementation**:
@@ -70,6 +74,7 @@ The current `compile_commands.json` generator likely doesn't include the full pa
 - [x] **All include paths are correctly captured** (platform, library, framework, custom)
 - [x] **No missing includes** in complex projects with multiple dependencies
 - [x] **Cross-platform compatibility** for include path generation
+- [x] **GCC flag filtering** for clangd compatibility
 
 ## Files Likely to Modify
 - `platformio/project/integration/generator.py` (or similar)
