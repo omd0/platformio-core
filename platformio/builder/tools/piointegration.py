@@ -27,20 +27,31 @@ def IsIntegrationDump(_):
 
 
 def DumpIntegrationIncludes(env):
-    result = dict(build=[], compatlib=[], toolchain=[])
+    result = dict(build=[], compatlib=[], toolchain=[], framework=[], custom=[])
 
-    # `env`(project) CPPPATH
+    # `env`(project) CPPPATH - build environment includes
     result["build"].extend(
         [os.path.abspath(env.subst(item)) for item in env.get("CPPPATH", [])]
     )
 
-    # installed libs
+    # installed libs - library includes
     for lb in env.GetLibBuilders():
         result["compatlib"].extend(
             [os.path.abspath(inc) for inc in lb.get_include_dirs()]
         )
 
-    # includes from toolchains
+    # framework-specific includes (handled by framework builders)
+    # These are typically included in the build CPPPATH
+
+    # custom includes from platformio.ini
+    custom_includes = env.GetProjectOption("build_flags", [])
+    for flag in custom_includes:
+        if flag.startswith("-I"):
+            include_path = flag[2:]
+            if os.path.isdir(env.subst(include_path)):
+                result["custom"].extend([os.path.abspath(env.subst(include_path))])
+
+    # includes from toolchains - enhanced for clangd compatibility
     p = env.PioPlatform()
     for pkg in p.get_installed_packages(with_optional=False):
         if p.get_package_type(pkg.metadata.name) != "toolchain":
@@ -51,6 +62,8 @@ def DumpIntegrationIncludes(env):
             os.path.join(toolchain_dir, "*", "include", "c++", "*", "*-*-*"),
             os.path.join(toolchain_dir, "lib", "gcc", "*", "*", "include*"),
             os.path.join(toolchain_dir, "*", "include*"),
+            os.path.join(toolchain_dir, "*", "sys-include*"),
+            os.path.join(toolchain_dir, "*", "include-fixed*"),
         ]
         for g in toolchain_incglobs:
             result["toolchain"].extend([os.path.abspath(inc) for inc in glob.glob(g)])
@@ -68,7 +81,7 @@ def get_gcc_defines(env):
         )
     except OSError:
         return items
-    if result["returncode"] != 0:
+    if result["returncode"] != 0 or not result["out"]:
         return items
     for line in result["out"].split("\n"):
         tokens = line.strip().split(" ", 2)

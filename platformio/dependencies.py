@@ -36,6 +36,7 @@ def get_pip_dependencies():
         "pyserial == 3.5.*",  # keep in sync "device/monitor/terminal.py"
         "requests%s == 2.*" % ("[socks]" if is_proxy_set(socks=True) else ""),
         "semantic_version == 2.10.*",
+        "scons >=4.0.0, <5.0.0",  # required for build system and compile_commands.json generation
         "tabulate == 0.*",
     ]
 

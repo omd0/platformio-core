@@ -142,11 +142,11 @@ def ProcessCompileDbToolchainOption(env):
         if " " in env[cmd]:  # issue #4998: Space in compilator path
             env[cmd] = f'"{env[cmd]}"'
 
-    if env.get("COMPILATIONDB_INCLUDE_TOOLCHAIN"):
-        print("Warning! `COMPILATIONDB_INCLUDE_TOOLCHAIN` is scoping")
-        for scope, includes in env.DumpIntegrationIncludes().items():
-            if scope in ("toolchain",):
-                env.Append(CPPPATH=includes)
+    # Enhanced include path collection for robust compile_commands.json
+    # Always include toolchain includes for clangd compatibility
+    for scope, includes in env.DumpIntegrationIncludes().items():
+        if scope in ("toolchain", "build", "compatlib"):
+            env.Append(CPPPATH=includes)
 
 
 def ProcessProjectDeps(env):
