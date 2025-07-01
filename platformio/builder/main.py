@@ -66,6 +66,7 @@ DEFAULT_ENV_OPTIONS = dict(
         "piomisc",
         "piointegration",
         "piomaxlen",
+        "piocompiledb",
     ],
     toolpath=[os.path.join(fs.get_source_dir(), "builder", "tools")],
     variables=clivars,
@@ -152,7 +153,11 @@ if not os.path.isdir(env.subst("$BUILD_DIR")):
 
 # Dynamically load dependent tools
 if "compiledb" in COMMAND_LINE_TARGETS:
-    env.Tool("compilation_db")
+    try:
+        env.Tool("compilation_db")
+    except Exception:
+        # Fallback to our custom compilation database generator
+        env.Tool("piocompiledb")
 
 env.LoadProjectOptions()
 env.LoadPioPlatform()

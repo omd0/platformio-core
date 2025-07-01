@@ -78,6 +78,9 @@ def BuildProgram(env):
     program = env.Program(env.subst("$PROGPATH"), env["PIOBUILDFILES"])
     env.Replace(PIOMAINPROG=program)
 
+    # Add compilation database generation
+    env.CompileDbGenerator()
+
     AlwaysBuild(
         env.Alias(
             "checkprogsize",
@@ -118,6 +121,9 @@ def ProcessProgramDeps(env):
     # apply user flags
     env.ProcessFlags(env.get("BUILD_FLAGS"))
 
+    # Filter GCC flags early for clangd compatibility
+    env.FilterClangdFlags()
+
     # process framework scripts
     env.BuildFrameworks(env.get("PIOFRAMEWORK"))
 
@@ -127,10 +133,16 @@ def ProcessProgramDeps(env):
     # remove specified flags
     env.ProcessUnFlags(env.get("BUILD_UNFLAGS"))
 
+    # Filter GCC flags again after all processing
+    env.FilterClangdFlags()
+
 
 def ProcessCompileDbToolchainOption(env):
     if "compiledb" not in COMMAND_LINE_TARGETS:
         return
+
+    # Filter GCC-specific flags for clangd compatibility FIRST
+    env.FilterClangdFlags()
 
     # Resolve absolute path of toolchain
     for cmd in ("CC", "CXX", "AS"):
@@ -147,9 +159,6 @@ def ProcessCompileDbToolchainOption(env):
     for scope, includes in env.DumpIntegrationIncludes().items():
         if scope in ("toolchain", "build", "compatlib"):
             env.Append(CPPPATH=includes)
-
-    # Filter GCC-specific flags for clangd compatibility
-    env.FilterClangdFlags()
 
 
 def FilterClangdFlags(env):
@@ -174,12 +183,9 @@ def FilterClangdFlags(env):
         "-fno-reorder-functions",  # GCC-specific
         "-fno-reorder-blocks",  # GCC-specific
         "-fno-reorder-blocks-and-partition",  # GCC-specific
+        "-ffunction-sections",  # GCC-specific
+        "-fdata-sections",  # GCC-specific
     ]
-
-    # Filter out GCC-specific flags from compilation flags
-    for flag_list in ["CCFLAGS", "CFLAGS", "CXXFLAGS", "CPPFLAGS"]:
-        if flag_list in env:
-            env[flag_list] = [flag for flag in env[flag_list] if flag not in gcc_only_flags]
 
     # Replace GCC flags with clang equivalents where possible
     flag_replacements = {
@@ -187,11 +193,38 @@ def FilterClangdFlags(env):
         "-fno-builtin": "-fno-builtin-printf",  # more specific for clang
     }
 
-    for flag_list in ["CCFLAGS", "CFLAGS", "CXXFLAGS", "CPPFLAGS"]:
-        if flag_list in env:
-            for i, flag in enumerate(env[flag_list]):
-                if flag in flag_replacements:
-                    env[flag_list][i] = flag_replacements[flag]
+    def filter_flag_list(flags):
+        """Filter and replace flags in a list"""
+        if not flags:
+            return flags
+        result = []
+        for flag in flags:
+            if isinstance(flag, str):
+                if flag in gcc_only_flags:
+                    continue  # Skip GCC-only flags
+                elif flag in flag_replacements:
+                    result.append(flag_replacements[flag])  # Replace with clang equivalent
+                else:
+                    result.append(flag)  # Keep the flag
+            else:
+                result.append(flag)  # Keep non-string flags as-is
+        return result
+
+    # Filter out GCC-specific flags from all compilation flag variables
+    flag_vars = ["CCFLAGS", "CFLAGS", "CXXFLAGS", "CPPFLAGS", "BUILD_FLAGS"]
+    for flag_var in flag_vars:
+        if flag_var in env:
+            env[flag_var] = filter_flag_list(env[flag_var])
+
+    # Also filter from command construction variables
+    for cmd_var in ["CCCOM", "CXXCOM", "ASCOM", "ASPPCOM"]:
+        if cmd_var in env:
+            cmd_str = str(env[cmd_var])
+            for gcc_flag in gcc_only_flags:
+                cmd_str = cmd_str.replace(gcc_flag, "")
+            for gcc_flag, clang_flag in flag_replacements.items():
+                cmd_str = cmd_str.replace(gcc_flag, clang_flag)
+            env[cmd_var] = cmd_str
 
 
 def ProcessProjectDeps(env):
