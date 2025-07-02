@@ -160,6 +160,15 @@ def ProcessCompileDbToolchainOption(env):
         if scope in ("toolchain", "build", "compatlib"):
             env.Append(CPPPATH=includes)
 
+    # Add ESP32/Xtensa specific definitions for clangd compatibility
+    if env.get("PIOPLATFORM") == "espressif32":
+        env.AppendUnique(CPPDEFINES=["__XTENSA__"])
+        # Ensure ESP32-specific definitions are present
+        esp32_defines = ["ARDUINO_ARCH_ESP32", "ESP32"]
+        for esp32_def in esp32_defines:
+            if esp32_def not in env.get("CPPDEFINES", []):
+                env.AppendUnique(CPPDEFINES=[esp32_def])
+
 
 def FilterClangdFlags(env):
     """Filter GCC-specific flags that clangd doesn't understand"""
@@ -185,6 +194,7 @@ def FilterClangdFlags(env):
         "-fno-reorder-blocks-and-partition",  # GCC-specific
         "-ffunction-sections",  # GCC-specific
         "-fdata-sections",  # GCC-specific
+        "-mfix-esp32-psram-cache-issue",  # ESP32-specific GCC flag not supported by clang
     ]
 
     # Replace GCC flags with clang equivalents where possible
@@ -203,7 +213,9 @@ def FilterClangdFlags(env):
                 if flag in gcc_only_flags:
                     continue  # Skip GCC-only flags
                 elif flag in flag_replacements:
-                    result.append(flag_replacements[flag])  # Replace with clang equivalent
+                    result.append(
+                        flag_replacements[flag]
+                    )  # Replace with clang equivalent
                 else:
                     result.append(flag)  # Keep the flag
             else:

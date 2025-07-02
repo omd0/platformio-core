@@ -21,38 +21,49 @@ from SCons.Script import COMMAND_LINE_TARGETS  # pylint: disable=import-error
 
 def GenerateCompileCommands(env, target, source):
     """Generate compile_commands.json for clangd compatibility"""
-    
+
     if "compiledb" not in COMMAND_LINE_TARGETS:
         return
-    
+
     compile_commands = []
-    
+
     # Get all source files that were built
     build_files = env.get("PIOBUILDFILES", [])
-    
+
     for build_file in build_files:
-        if hasattr(build_file, 'srcnode'):
+        if hasattr(build_file, "srcnode"):
             src_file = build_file.srcnode().get_abspath()
         else:
             src_file = str(build_file)
-            
+
         # Skip if not a C/C++ file
-        if not any(src_file.endswith(ext) for ext in ['.c', '.cpp', '.cc', '.cxx', '.c++']):
+        if not any(
+            src_file.endswith(ext) for ext in [".c", ".cpp", ".cc", ".cxx", ".c++"]
+        ):
             continue
-            
-        # Determine compiler
-        if src_file.endswith('.c'):
+
+        # Determine compiler and resolve full path
+        if src_file.endswith(".c"):
             compiler = env.subst("$CC")
             flags = env.subst("$CFLAGS $CCFLAGS $CPPFLAGS")
         else:
             compiler = env.subst("$CXX")
             flags = env.subst("$CXXFLAGS $CCFLAGS $CPPFLAGS")
-            
+
+        # Resolve absolute path of compiler for clangd compatibility
+        if not os.path.isabs(compiler) and '"' not in compiler:
+            from platformio.proc import where_is_program
+            resolved_compiler = where_is_program(compiler, env.subst("${ENV['PATH']}"))
+            if resolved_compiler:
+                compiler = resolved_compiler
+            if " " in compiler:  # Handle spaces in compiler path
+                compiler = f'"{compiler}"'
+
         # Get include paths
         includes = []
         for include_path in env.get("CPPPATH", []):
             includes.append(f"-I{env.subst(str(include_path))}")
-            
+
         # Get defines
         defines = []
         for define in env.get("CPPDEFINES", []):
@@ -63,41 +74,54 @@ def GenerateCompileCommands(env, target, source):
                     defines.append(f"-D{define[0]}")
             else:
                 defines.append(f"-D{define}")
-        
+
+        # Add ESP32/Xtensa specific definitions
+        if env.get("PIOPLATFORM") == "espressif32":
+            defines.append("-D__XTENSA__")
+            # Add ESP32-specific definitions if not already present
+            esp32_defines = ["ARDUINO_ARCH_ESP32", "ESP32"]
+            for esp32_def in esp32_defines:
+                if not any(define.endswith(esp32_def) for define in defines):
+                    defines.append(f"-D{esp32_def}")
+
         # Filter GCC-specific flags for clangd compatibility
         filtered_flags = filter_gcc_flags_for_clangd(flags, env)
-        
+
         # Build the command
-        command_parts = [compiler] + filtered_flags.split() + includes + defines + ["-c", src_file]
+        command_parts = (
+            [compiler] + filtered_flags.split() + includes + defines + ["-c", src_file]
+        )
         command = " ".join(command_parts)
-        
-        compile_commands.append({
-            "directory": env.subst("$PROJECT_DIR"),
-            "file": src_file,
-            "command": command
-        })
-    
+
+        compile_commands.append(
+            {
+                "directory": env.subst("$PROJECT_DIR"),
+                "file": src_file,
+                "command": command,
+            }
+        )
+
     # Write compile_commands.json
     output_path = env.subst("$COMPILATIONDB_PATH")
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    
-    with open(output_path, 'w') as f:
+
+    with open(output_path, "w") as f:
         json.dump(compile_commands, f, indent=2)
-    
+
     print(f"Generated {output_path} with {len(compile_commands)} entries")
 
 
 def filter_gcc_flags_for_clangd(flags_str, env):
     """Filter GCC-specific flags that clangd doesn't understand"""
-    
+
     # Check if clangd flag filtering is enabled (default: True)
     if not env.GetProjectOption("compiledb_clangd_compat", True):
         return flags_str
-    
+
     # GCC flags that clangd doesn't understand
     gcc_only_flags = [
         "-mlongcalls",
-        "-fstrict-volatile-bitfields", 
+        "-fstrict-volatile-bitfields",
         "-fno-tree-switch-conversion",
         "-fno-jump-tables",
         "-fno-unwind-tables",
@@ -107,13 +131,14 @@ def filter_gcc_flags_for_clangd(flags_str, env):
         "-fno-reorder-functions",
         "-fno-reorder-blocks",
         "-fno-reorder-blocks-and-partition",
+        "-mfix-esp32-psram-cache-issue",  # ESP32-specific GCC flag not supported by clang
     ]
-    
+
     # Replace GCC flags with clang equivalents
     flag_replacements = {
         "-mlongcalls": "-mlong-calls",
     }
-    
+
     # Filter flags
     filtered_flags = []
     for flag in flags_str.split():
@@ -123,16 +148,16 @@ def filter_gcc_flags_for_clangd(flags_str, env):
             filtered_flags.append(flag_replacements[flag])
         else:
             filtered_flags.append(flag)
-    
+
     return " ".join(filtered_flags)
 
 
 def CompileDbGenerator(env):
     """Add compilation database generation to post-build actions"""
-    
+
     if "compiledb" not in COMMAND_LINE_TARGETS:
         return
-        
+
     # Add our generator as a post-build action
     env.AddPostAction("$PIOMAINPROG", GenerateCompileCommands)
 
@@ -143,4 +168,4 @@ def exists(_):
 
 def generate(env):
     env.AddMethod(CompileDbGenerator)
-    return env 
+    return env

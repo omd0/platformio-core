@@ -140,6 +140,21 @@ def test_init_ide_eclipse(clirunner, validate_cliresult):
         assert all(os.path.isfile(f) for f in (".cproject", ".project"))
 
 
+def test_init_ide_clangd(clirunner, validate_cliresult):
+    with clirunner.isolated_filesystem():
+        result = clirunner.invoke(
+            project_init_cmd,
+            ["-b", "uno", "--ide", "clangd", "--no-install-dependencies"],
+        )
+        validate_cliresult(result)
+        validate_pioproject(os.getcwd())
+        assert os.path.isfile(".clangd")
+        # Check that .clangd contains expected content
+        clangd_content = open(".clangd", "r").read()
+        assert "PlatformIO generated .clangd configuration" in clangd_content
+        assert "CompileFlags:" in clangd_content
+
+
 def test_init_special_board(clirunner, validate_cliresult):
     with clirunner.isolated_filesystem():
         result = clirunner.invoke(project_init_cmd, ["-b", "uno"])
