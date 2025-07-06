@@ -56,6 +56,17 @@ Get Started
 * `PlatformIO Core (CLI) <https://docs.platformio.org/en/latest/core.html?utm_source=github&utm_medium=core>`_
 * `Project Examples <https://github.com/platformio/platformio-examples?utm_source=github&utm_medium=core>`__
 
+Installation from Fork
+---------------------
+
+This is a forked version of PlatformIO Core that ensures installation from the `omd0` repository.
+For installation instructions, see `INSTALL_FROM_FORK.md <INSTALL_FROM_FORK.md>`_.
+
+Quick installation:
+::
+
+    python3 install_from_fork.py
+
 Solutions
 ---------
 
